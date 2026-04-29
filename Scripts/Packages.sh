@@ -77,6 +77,7 @@ UPDATE_PACKAGE "quickfile" "sbwml/luci-app-quickfile" "main"
 UPDATE_PACKAGE "timecontrol" "sirpdboy/luci-app-timecontrol" "main"
 UPDATE_PACKAGE "viking" "VIKINGYFY/packages" "main" "" "gecoosac luci-app-timewol luci-app-wolplus"
 UPDATE_PACKAGE "vnt" "lmq8267/luci-app-vnt" "main"
+UPDATE_PACKAGE "nps-openwrt" "djylb/nps-openwrt" "main" "" "npc nps luci-app-npc luci-app-nps"
 
 #更新软件包版本
 UPDATE_VERSION() {
@@ -122,3 +123,13 @@ UPDATE_VERSION() {
 #UPDATE_VERSION "软件包名" "测试版，true，可选，默认为否"
 UPDATE_VERSION "sing-box"
 #UPDATE_VERSION "tailscale"
+
+if [[ "$WRT_CONFIG" == "ZN-M2-WIFI-NO" ]]; then
+	GENERAL_CONFIG="$GITHUB_WORKSPACE/Config/GENERAL.txt"
+	ZN_M2_CONFIG="$GITHUB_WORKSPACE/Config/ZN-M2-GENERAL.txt"
+	MERGED_CONFIG="$(mktemp)"
+
+	bash "$GITHUB_WORKSPACE/Scripts/MergeConfig.sh" "$GENERAL_CONFIG" "$ZN_M2_CONFIG" > "$MERGED_CONFIG"
+	mv -f "$MERGED_CONFIG" "$GENERAL_CONFIG"
+	echo "ZN-M2 general config has been merged!"
+fi
