@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+# Copyright (C) 2026 VIKINGYFY
+
+name: ZN-M2
+
+on:
+  workflow_dispatch:
+    inputs:
+      PACKAGE:
+        description: 'Extra config lines. Separate multiple lines with \n.'
+        required: false
+        type: string
+      TEST:
+        description: 'Generate the final config only, without compiling firmware.'
+        default: 'false'
+        required: false
+        type: boolean
+
+permissions: write-all
+
+jobs:
+  prepare:
+    name: Prepare ZN-M2 Overrides
+    runs-on: ubuntu-latest
+    outputs:
+      package_config: ${{steps.config.outputs.package_config}}
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@main
+
+      - name: Build General Overrides
+        id: config
+        env:
+          BASE_CONFIG: Config/GENERAL.txt
+          OVERRIDE_CONFIG: Config/ZN-M2-GENERAL.txt
+          PACKAGE: ${{inputs.PACKAGE}}
+        run: |
+          OUTPUT_FILE="$(mktemp)"
+
+          {
+            echo "# ZN-M2 merged general config"
+            bash "$GITHUB_WORKSPACE/Scripts/MergeConfig.sh" "$BASE_CONFIG" "$OVERRIDE_CONFIG"
+
+            if [ -n "$PACKAGE" ]; then
+              echo
+              echo "# Manual workflow config overrides"
+              printf '%b\n' "$PACKAGE"
+            fi
+          } > "$OUTPUT_FILE"
+
+          {
+            echo 'package_config<<EOF'
+            cat "$OUTPUT_FILE"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: ZN-M2
+    needs: prepare
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      WRT_CONFIG: ZN-M2-WIFI-NO
+      WRT_THEME: aurora
+      WRT_NAME: OWRT
+      WRT_SSID: OWRT
+      WRT_WORD: 12345678
+      WRT_IP: 192.168.10.1
+      WRT_PW: none
+      WRT_REPO: https://github.com/VIKINGYFY/immortalwrt.git
+      WRT_BRANCH: main
+      WRT_SOURCE: VIKINGYFY/immortalwrt
+      WRT_PACKAGE: ${{needs.prepare.outputs.package_config}}
+      WRT_TEST: ${{inputs.TEST}}
