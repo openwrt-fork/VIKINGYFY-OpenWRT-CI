@@ -49,9 +49,10 @@ jobs:
           } > "$OUTPUT_FILE"
 
           {
-            echo 'package_config<<EOF'
+            DELIMITER="package_config_$(openssl rand -hex 8)"
+            echo "package_config<<$DELIMITER"
             cat "$OUTPUT_FILE"
-            echo 'EOF'
+            printf '\n%s\n' "$DELIMITER"
           } >> "$GITHUB_OUTPUT"
 
   build:
