@@ -4,12 +4,4 @@
 
 if [[ "$WRT_CONFIG" == "ZN-M2-WIFI-NO" ]]; then
 	UPDATE_PACKAGE "nps-openwrt" "djylb/nps-openwrt" "main" "" "npc nps luci-app-npc luci-app-nps"
-
-	GENERAL_CONFIG="$GITHUB_WORKSPACE/Config/GENERAL.txt"
-	ZN_M2_CONFIG="$GITHUB_WORKSPACE/Config/ZN-M2-GENERAL.txt"
-	MERGED_CONFIG="$(mktemp)"
-
-	bash "$GITHUB_WORKSPACE/Scripts/MergeConfig.sh" "$GENERAL_CONFIG" "$ZN_M2_CONFIG" > "$MERGED_CONFIG"
-	mv -f "$MERGED_CONFIG" "$GENERAL_CONFIG"
-	echo "ZN-M2 general config has been merged!"
 fi
