@@ -5,7 +5,7 @@ name: ZN-M2
 
 on:
   schedule:
-    - cron: '5 19 * * *'   # Daily at 03:05 CST
+    - cron: '47 19 * * *'   # Daily at 03:47 CST
   workflow_dispatch:
     inputs:
       PACKAGE:
