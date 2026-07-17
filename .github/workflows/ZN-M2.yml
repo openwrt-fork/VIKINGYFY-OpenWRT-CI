@@ -4,6 +4,8 @@
 name: ZN-M2
 
 on:
+  schedule:
+    - cron: '37 */6 * * *'
   workflow_dispatch:
     inputs:
       PACKAGE:
@@ -19,7 +21,33 @@ on:
 permissions: write-all
 
 jobs:
+  check:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-22.04
+    outputs:
+      should_build: ${{ steps.check.outputs.should_build }}
+    steps:
+    - name: Check upstream Passwall version
+      id: check
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        LATEST_PW=$(gh release list -R Openwrt-Passwall/openwrt-passwall -L 1 --json tagName -q '.[0].tagName')
+        LATEST_TAG=$(gh release list -L 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+        if [ "$LATEST_PW" != "$LATEST_TAG" ]; then
+          echo "Passwall release: ${LATEST_TAG:-none} -> $LATEST_PW"
+          echo "should_build=true" >> $GITHUB_OUTPUT
+        else
+          echo "Up to date ($LATEST_TAG)"
+          echo "should_build=false" >> $GITHUB_OUTPUT
+        fi
+
   build:
+    needs: check
+    if: |
+      always() &&
+      (github.event_name == 'workflow_dispatch' || needs.check.outputs.should_build == 'true')
     name: ZN-M2
     uses: ./.github/workflows/WRT-CORE.yml
     with:
