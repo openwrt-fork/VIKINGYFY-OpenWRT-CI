@@ -34,7 +34,7 @@ jobs:
       run: |
         set -euo pipefail
         LATEST_PW=$(gh release list -R Openwrt-Passwall/openwrt-passwall -L 1 --json tagName -q '.[0].tagName')
-        LATEST_TAG=$(gh release list -L 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+        LATEST_TAG=$(gh release list -R ${{ github.repository }} -L 1 --json tagName -q '.[0].tagName' || echo "")
         if [ "$LATEST_PW" != "$LATEST_TAG" ]; then
           echo "Passwall release: ${LATEST_TAG:-none} -> $LATEST_PW"
           echo "should_build=true" >> $GITHUB_OUTPUT
