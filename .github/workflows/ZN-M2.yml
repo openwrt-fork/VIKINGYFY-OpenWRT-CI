@@ -26,22 +26,47 @@ jobs:
     runs-on: ubuntu-22.04
     outputs:
       should_build: ${{ steps.check.outputs.should_build }}
+      latest_pw: ${{ steps.check.outputs.latest_pw }}
+      latest_pkg_sha: ${{ steps.check.outputs.latest_pkg_sha }}
     steps:
-    - name: Check upstream Passwall version
+    - uses: actions/cache/restore@v6
+      id: cache-restore
+      with:
+        path: /tmp/passwall-cache
+        key: passwall-check-${{ github.run_id }}
+        restore-keys: passwall-check-
+
+    - name: Check upstream updates
       id: check
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
         set -euo pipefail
+        SHOULD_BUILD=false
+
+        # Check Passwall release tag
         LATEST_PW=$(gh release list -R Openwrt-Passwall/openwrt-passwall -L 1 --json tagName -q '.[0].tagName')
-        LATEST_TAG=$(gh release list -R ${{ github.repository }} -L 1 --json tagName -q '.[0].tagName' || echo "")
-        if [ "$LATEST_PW" != "$LATEST_TAG" ]; then
-          echo "Passwall release: ${LATEST_TAG:-none} -> $LATEST_PW"
-          echo "should_build=true" >> $GITHUB_OUTPUT
+        STORED_PW=$(cat /tmp/passwall-cache/passwall-tag 2>/dev/null || echo "")
+        if [ "$LATEST_PW" != "$STORED_PW" ]; then
+          echo "Passwall: ${STORED_PW:-none} -> $LATEST_PW"
+          SHOULD_BUILD=true
         else
-          echo "Up to date ($LATEST_TAG)"
-          echo "should_build=false" >> $GITHUB_OUTPUT
+          echo "Passwall unchanged ($LATEST_PW)"
         fi
+
+        # Check packages repo latest commit
+        LATEST_SHA=$(gh api repos/Openwrt-Passwall/openwrt-passwall-packages/commits/main --jq .sha)
+        STORED_SHA=$(cat /tmp/passwall-cache/packages-sha 2>/dev/null || echo "")
+        if [ "$LATEST_SHA" != "$STORED_SHA" ]; then
+          echo "Packages: ${STORED_SHA:-none} -> $LATEST_SHA"
+          SHOULD_BUILD=true
+        else
+          echo "Packages unchanged ($LATEST_SHA)"
+        fi
+
+        echo "should_build=$SHOULD_BUILD" >> $GITHUB_OUTPUT
+        echo "latest_pw=$LATEST_PW" >> $GITHUB_OUTPUT
+        echo "latest_pkg_sha=$LATEST_SHA" >> $GITHUB_OUTPUT
 
   build:
     needs: check
@@ -63,3 +88,64 @@ jobs:
       WRT_SOURCE: VIKINGYFY/immortalwrt
       WRT_PACKAGE: ${{inputs.PACKAGE}}
       WRT_TEST: ${{inputs.TEST}}
+
+  post-build:
+    needs: [check, build]
+    if: |
+      always() &&
+      needs.build.result == 'success'
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Update release note & cache
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        set -euo pipefail
+        TAG=$(gh release list -R ${{ github.repository }} -L 1 --json tagName -q '.[0].tagName')
+
+        # Download release assets
+        rm -rf /tmp/release-assets && mkdir -p /tmp/release-assets
+        gh release download "$TAG" -R ${{ github.repository }} -D /tmp/release-assets
+
+        MANIFEST=$(find /tmp/release-assets -name '*manifest*' -print -quit)
+        CONFIG=$(find /tmp/release-assets -name 'Config-*' -print -quit)
+
+        # Extract versions from manifest
+        PASSWALL_VER=$(grep luci-app-passwall "$MANIFEST" | awk -F" - " '{print $2}')
+        XRAY_VER=$(grep xray-core "$MANIFEST" | awk -F" - " '{print $2}' | awk -F"-" '{print $1}')
+        CHINADNS_VER=$(grep chinadns-ng "$MANIFEST" | awk -F" - " '{print $2}' | awk -F"-" '{print $1}')
+        KERNEL_VER=$(grep -oP '^kernel - \K[\d\.]+' "$MANIFEST")
+
+        # Extract target platform from config
+        TARGET=$(grep -m1 -oP '^CONFIG_TARGET_\K\w+(?==y)' "$CONFIG")
+
+        # Build release body
+        cat <<EOF > /tmp/release-body.md
+        ## ZN-M2 固件
+
+        **Passwall 版本:** \`$PASSWALL_VER\`
+        **Xray:** \`$XRAY_VER\`
+        **ChinaDNS-NG:** \`$CHINADNS_VER\`
+
+        登录地址：\`192.168.10.1\`
+        登录密码：\`none\`
+        内核版本：\`$KERNEL_VER\`
+        配置：\`ZN-M2-WIFI-NO\`
+        平台：\`$TARGET\`
+        EOF
+        gh release edit "$TAG" -R ${{ github.repository }} --title "ZN-M2-WIFI-NO-Passwall-$PASSWALL_VER" --notes-file /tmp/release-body.md
+
+        # Save cache for next schedule check
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          PASSWALL_TAG=$(gh release list -R Openwrt-Passwall/openwrt-passwall -L 1 --json tagName -q '.[0].tagName')
+          PKG_SHA=$(gh api repos/Openwrt-Passwall/openwrt-passwall-packages/commits/main --jq .sha)
+          mkdir -p /tmp/passwall-cache
+          echo "$PASSWALL_TAG" > /tmp/passwall-cache/passwall-tag
+          echo "$PKG_SHA" > /tmp/passwall-cache/packages-sha
+        fi
+
+    - uses: actions/cache/save@v6
+      if: github.event_name == 'schedule'
+      with:
+        path: /tmp/passwall-cache
+        key: passwall-check-${{ github.run_id }}
