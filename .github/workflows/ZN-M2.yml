@@ -39,9 +39,12 @@ jobs:
 
         # Passwall release tag vs this repo's latest release tag.
         # Our release tag is the Passwall version, so this needs no cache.
+        # NOTE: the manifest records passwall as YY.MM.DD-rN, but upstream tags
+        # it YY.MM.DD-N — the same version. Strip the "r" before comparing so
+        # 26.8.12-r1 (ours) == 26.8.12-1 (upstream) doesn't trigger a rebuild.
         LATEST_PW=$(gh release list -R Openwrt-Passwall/openwrt-passwall -L 1 --json tagName -q '.[0].tagName')
         LATEST_TAG=$(gh release list -R "$GITHUB_REPOSITORY" -L 1 --json tagName -q '.[0].tagName' || echo "")
-        if [ "$LATEST_PW" != "$LATEST_TAG" ]; then
+        if [ "${LATEST_PW//-r/-}" != "${LATEST_TAG//-r/-}" ]; then
           echo "Passwall release: ${LATEST_TAG:-none} -> $LATEST_PW"
           SHOULD_BUILD=true
         else
@@ -49,8 +52,9 @@ jobs:
         fi
 
         # Upstream packages newer than our last release? No cache needed —
-        # our last release's createdAt is the last build time.
-        LAST_REL=$(gh release list -R "$GITHUB_REPOSITORY" -L 1 --json createdAt -q '.[0].createdAt' || echo "")
+        # our last release's publishedAt is the last build time.
+        # (createdAt is stale after the post-build deletes/recreates a release.)
+        LAST_REL=$(gh release list -R "$GITHUB_REPOSITORY" -L 1 --json publishedAt -q '.[0].publishedAt' || echo "")
         LAST_PKG=$(gh api repos/Openwrt-Passwall/openwrt-passwall-packages/commits/main --jq .commit.committer.date)
         if [ -z "$LAST_REL" ] || [ "$LAST_PKG" \> "$LAST_REL" ]; then
           echo "Packages updated since last release ($LAST_REL)"
