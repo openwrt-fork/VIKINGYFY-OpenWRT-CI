@@ -14,12 +14,15 @@ on:
         required: true
         type: choice
         options:
-          - IPQ60XX-WIFI-YES
+          - AIROHA
+          - IPQ53XX
           - IPQ60XX-WIFI-NO
-          - IPQ807X-WIFI-YES
+          - IPQ60XX-WIFI-YES
           - IPQ807X-WIFI-NO
-          - MEDIATEK-WIFI-YES
+          - IPQ807X-WIFI-YES
+          - IPQ95XX
           - MEDIATEK-WIFI-NO
+          - MEDIATEK-WIFI-YES
           - ROCKCHIP
           - X86
           - TEST
@@ -30,10 +33,8 @@ on:
         options:
           - VIKINGYFY/immortalwrt
           - immortalwrt/immortalwrt
-          - LiBwrt/openwrt-6.x
-          - qosmio/openwrt-ipq
       BRANCH:
-        default: 'main'
+        default: 'owrt'
         required: true
         type: string
       PACKAGE:
@@ -41,7 +42,7 @@ on:
         type: string
       TEST:
         description: '仅输出配置文件，不编译固件。'
-        default: 'true'
+        default: true
         required: true
         type: boolean
 
@@ -78,4 +79,4 @@ jobs:
       #插件调整
       WRT_PACKAGE: ${{inputs.PACKAGE}}
       #仅输出配置文件
-      WRT_TEST: ${{inputs.TEST}}
+      WRT_TEST: ${{inputs.TEST || false}}
